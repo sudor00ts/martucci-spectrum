@@ -1,0 +1,8 @@
+node_modules
+.vercel
+dist
+.output
+*.log
+.env
+.env.*
+!.env.example
