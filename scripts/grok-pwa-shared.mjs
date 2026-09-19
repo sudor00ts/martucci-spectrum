@@ -6,12 +6,17 @@ export const OG_SERVICE_URL_DEFAULT = "";
 export const OG_SITE_REL_PATH = "src/lib/og/site.json";
 export const GROK_EXTENSIONS_SCRIPT_SRC = "";
 
+const AMP = "&" + "amp;";
+const LT = "&" + "lt;";
+const GT = "&" + "gt;";
+const QUOT = "&" + "quot;";
+
 export function escapeHtml(value) {
   return String(value ?? "")
-    .replaceAll("&", "&")
-    .replaceAll("<", "<")
-    .replaceAll(">", ">")
-    .replaceAll('"', """);
+    .replaceAll("&", AMP)
+    .replaceAll("<", LT)
+    .replaceAll(">", GT)
+    .replaceAll('"', QUOT);
 }
 
 export function publicAppHost(hostHeader) {
@@ -130,8 +135,7 @@ export function createHeadInjector(ctx) {
     push(chunk) {
       if (done) return [typeof chunk === "string" ? encoder.encode(chunk) : chunk];
       pending += typeof chunk === "string" ? chunk : decoder.decode(chunk);
-      const idx = pending.toLowerCase().indexOf("</head>");
-      if (idx === -1) {
+      if (pending.toLowerCase().indexOf("</head>") === -1) {
         if (pending.length > 20000) {
           const out = encoder.encode(pending);
           pending = "";
