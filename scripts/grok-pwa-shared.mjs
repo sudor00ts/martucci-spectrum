@@ -8,10 +8,10 @@ export const GROK_EXTENSIONS_SCRIPT_SRC = "";
 
 export function escapeHtml(value) {
   return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+    .replaceAll("&", "&")
+    .replaceAll("<", "<")
+    .replaceAll(">", ">")
+    .replaceAll('"', """);
 }
 
 export function publicAppHost(hostHeader) {
@@ -46,7 +46,7 @@ export function stripInstallParams(url) {
 }
 export function renderInstallPageHtml(template, context = {}) {
   const host = publicAppHost(context.host);
-  const appUrl = `https://${host}${stripInstallParams(context.url)}`;
+  const appUrl = "https://" + host + stripInstallParams(context.url);
   return String(template ?? "")
     .replaceAll("{{APP_NAME}}", DEFAULT_APP_NAME)
     .replaceAll("{{APP_URL}}", appUrl);
@@ -61,13 +61,13 @@ export function renderWebManifest(hostHeader) {
     background_color: "#0c0b0a",
     theme_color: "#0c0b0a",
     icons: [{ src: "/favicon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" }],
-    id: `https://${host}/`,
+    id: "https://" + host + "/",
   });
 }
 export function grokPwaHeadTags(appName = DEFAULT_APP_NAME) {
   return [
-    ["link", `<link rel=\"manifest\" href=\"/__grok/manifest.webmanifest\" />`],
-    ["meta", `<meta name=\"apple-mobile-web-app-title\" content=\"${escapeHtml(appName)}\" />`],
+    ["link", '<link rel="manifest" href="/__grok/manifest.webmanifest" />'],
+    ["meta", '<meta name="apple-mobile-web-app-title" content="' + escapeHtml(appName) + '" />'],
   ];
 }
 export function readGrokProjectId() { return ""; }
@@ -100,8 +100,8 @@ export function siteHasCustomCard() { return true; }
 export function grokOgHeadTags(ctx = {}) {
   const title = escapeHtml(resolveOgTitle(ctx.site, ctx.appName));
   return [
-    `<meta property=\"og:title\" content=\"${title}\" />`,
-    `<meta property=\"og:type\" content=\"website\" />`,
+    '<meta property="og:title" content="' + title + '" />',
+    '<meta property="og:type" content="website" />',
   ];
 }
 export function stripShareMetaTags(html) { return html; }
@@ -119,7 +119,7 @@ export function normalizeHeadContext(ctx = {}) {
 export function injectGrokPwaHead(html, ctx) {
   const tags = grokOgHeadTags(normalizeHeadContext(ctx)).join("");
   if (!html.includes("</head>")) return html + tags;
-  return html.replace("</head>", `${tags}</head>`);
+  return html.replace("</head>", tags + "</head>");
 }
 export function createHeadInjector(ctx) {
   const decoder = new TextDecoder();
