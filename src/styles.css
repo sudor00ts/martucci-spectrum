@@ -1,0 +1,82 @@
+@import "tailwindcss";
+@import "@fontsource/oswald/latin-600.css";
+@import "@fontsource/oswald/latin-700.css";
+@import "@fontsource/oswald/latin-ext-600.css";
+@import "@fontsource/oswald/latin-ext-700.css";
+@import "@fontsource/ibm-plex-sans/latin-400.css";
+@import "@fontsource/ibm-plex-sans/latin-500.css";
+@import "@fontsource/ibm-plex-sans/latin-600.css";
+@import "@fontsource/ibm-plex-sans/latin-ext-400.css";
+@import "@fontsource/ibm-plex-sans/latin-ext-500.css";
+@import "@fontsource/ibm-plex-sans/latin-ext-600.css";
+@import "@fontsource/ibm-plex-mono/latin-400.css";
+@import "@fontsource/ibm-plex-mono/latin-500.css";
+@import "@fontsource/ibm-plex-mono/latin-ext-400.css";
+@import "@fontsource/ibm-plex-mono/latin-ext-500.css";
+
+@theme {
+  --font-display: "Oswald", "Impact", "Arial Narrow", sans-serif;
+  --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --color-bg: #0c0b0a;
+  --color-surface: #141311;
+  --color-elevated: #1c1a17;
+  --color-inset: #090807;
+  --color-fg: #ece8e1;
+  --color-muted: #9a948c;
+  --color-subtle: #6a655e;
+  --color-accent: #e07030;
+  --color-accent-fg: #140c08;
+  --color-spectrum: #e07030;
+  --color-spectrum-hi: #f4c09a;
+  --color-clip: #d45d5d;
+  --color-ok: #6fbf8b;
+  --color-warn: #e07030;
+  --color-overlay-b: #c4b8a8;
+  --color-grid: rgb(236 232 225 / 0.07);
+  --color-grid-strong: rgb(236 232 225 / 0.14);
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --text-micro: 0.6875rem;
+  --text-2xs: 0.625rem;
+  --shadow-panel: 0 0 0 1px rgb(236 232 225 / 0.08);
+  --shadow-panel-hover: 0 0 0 1px rgb(236 232 225 / 0.14);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    color-scheme: dark;
+  }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    overscroll-behavior: none;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  * { box-sizing: border-box; }
+  header.powered,
+  [aria-label="Powered by Grok"],
+  [aria-label="Created with Grok"],
+  [aria-label="Remix"],
+  [data-grok-banner],
+  [data-grok-chrome],
+  #grok-app-builder-banner,
+  a[href^="https://grok.com"],
+  a[href*="grok.me"][href*="remix"],
+  iframe[src*="grok-app-builder"],
+  iframe[src*="grok.com"] {
+    display: none !important;
+  }
+}
