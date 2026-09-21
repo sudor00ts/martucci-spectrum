@@ -4,7 +4,7 @@ import { useAnalyzerStore } from "@/lib/analyzer-store";
 import { SNAP_COLORS } from "@/lib/tints";
 import { usePhoneLandscape } from "@/lib/use-phone-landscape";
 import { usePwaInstall } from "@/lib/use-pwa-install";
-import { Button } from "@/components/ui/button";
+import { AudioDock, type PlaylistItem } from "@/components/analyzer/AudioDock";
 import { DonateBanner } from "@/components/analyzer/DonateBanner";
 import { InstallSheet } from "@/components/analyzer/InstallSheet";
 import { LandscapeHud } from "@/components/analyzer/LandscapeHud";
@@ -15,6 +15,8 @@ import { StatsBar, type StatsBarHandle } from "@/components/analyzer/StatsBar";
 import { Toolbar } from "@/components/analyzer/Toolbar";
 import { cn } from "@/lib/utils";
 
+const DEMO_ITEM: PlaylistItem = { id: "demo", label: "Demo Martucci", kind: "demo" };
+
 export function AnalyzerApp() {
   const engineRef = useRef<AudioEngine | null>(null);
   const spectrumRef = useRef<SpectrumCanvasHandle>(null);
@@ -22,6 +24,7 @@ export function AnalyzerApp() {
   const statsRef = useRef<StatsBarHandle>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const lastFrame = useRef<AnalyzerFrame | null>(null);
+  const filesRef = useRef<Map<string, File>>(new Map());
   const landscape = usePhoneLandscape();
   const pwa = usePwaInstall();
 
@@ -29,9 +32,12 @@ export function AnalyzerApp() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
-  const [needsGesture, setNeedsGesture] = useState(true);
   const [snapshots, setSnapshots] = useState<AnalyzerSnapshot[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [playlist, setPlaylist] = useState<PlaylistItem[]>([DEMO_ITEM]);
+  const [activeId, setActiveId] = useState("demo");
+  const [muted, setMuted] = useState(false);
+  const [volume, setVolume] = useState(0.78);
 
   const fftSize = useAnalyzerStore((s) => s.fftSize);
   const windowName = useAnalyzerStore((s) => s.windowName);
@@ -72,12 +78,7 @@ export function AnalyzerApp() {
         setRunning(frame.running);
       }
     };
-    void engine.startDemo().then(() => {
-      setNeedsGesture(engine.isRunning() ? false : true);
-      setSource("demo");
-    });
     return () => engine.dispose();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -93,28 +94,20 @@ export function AnalyzerApp() {
     engineRef.current?.setFrozen(frozen);
   }, [frozen]);
 
-  const unlock = useCallback(async () => {
-    const engine = engineRef.current;
-    if (!engine) return;
-    await engine.resume();
-    if (engine.getSource() === "idle") await engine.startDemo();
-    setNeedsGesture(!engine.isRunning());
-    setSource(engine.getSource());
-  }, []);
-
   const onDemo = useCallback(async () => {
     setMicError(null);
     await engineRef.current?.startDemo();
-    setNeedsGesture(false);
+    engineRef.current?.setOutputGain(volume);
+    engineRef.current?.setMuted(muted);
     setSource("demo");
+    setActiveId("demo");
     setFileName(null);
-  }, []);
+  }, [muted, volume]);
 
   const onMic = useCallback(async () => {
     setMicError(null);
     try {
       await engineRef.current?.startMic();
-      setNeedsGesture(false);
       setSource("mic");
       setFileName(null);
     } catch (err) {
@@ -129,14 +122,47 @@ export function AnalyzerApp() {
   const onFile = useCallback(async (file: File) => {
     setMicError(null);
     try {
+      const id = `file-${file.name}-${file.size}`;
+      filesRef.current.set(id, file);
+      setPlaylist((prev) => (prev.some((item) => item.id === id) ? prev : [...prev, { id, label: file.name, kind: "file" }]));
       await engineRef.current?.startFile(file);
-      setNeedsGesture(false);
+      engineRef.current?.setOutputGain(volume);
+      engineRef.current?.setMuted(muted);
       setSource("file");
+      setActiveId(id);
       setFileName(file.name);
     } catch {
       setMicError("No se pudo decodificar el archivo");
     }
+  }, [muted, volume]);
+
+  const onPlayItem = useCallback(async (item: PlaylistItem) => {
+    if (item.kind === "demo") {
+      await onDemo();
+      return;
+    }
+    const file = filesRef.current.get(item.id);
+    if (file) await onFile(file);
+  }, [onDemo, onFile]);
+
+  const onVolume = useCallback((value: number) => {
+    setVolume(value);
+    setMuted(value <= 0);
+    engineRef.current?.setOutputGain(value);
+    engineRef.current?.setMuted(value <= 0);
   }, []);
+
+  const onMute = useCallback(() => {
+    setMuted((prev) => {
+      const next = !prev;
+      engineRef.current?.setMuted(next);
+      return next;
+    });
+  }, []);
+
+  const unlock = useCallback(async () => {
+    await onDemo();
+  }, [onDemo]);
 
   const onReset = useCallback(() => engineRef.current?.resetHolds(), []);
   const onExport = useCallback(() => spectrumRef.current?.exportPng(), []);
@@ -170,14 +196,7 @@ export function AnalyzerApp() {
       else if (e.key === "z" || e.key === "Z") useAnalyzerStore.getState().zoomToSelection();
     };
     window.addEventListener("keydown", onKey);
-    const blockGesture = (ev: Event) => ev.preventDefault();
-    document.addEventListener("gesturestart", blockGesture);
-    document.addEventListener("gesturechange", blockGesture);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.removeEventListener("gesturestart", blockGesture);
-      document.removeEventListener("gesturechange", blockGesture);
-    };
+    return () => window.removeEventListener("keydown", onKey);
   }, [onDemo, onMic, onReset, onSnapshot]);
 
   return (
@@ -197,16 +216,7 @@ export function AnalyzerApp() {
         <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-inset">
           <SpectrumCanvas ref={spectrumRef} channel={channel} secondary={secondary} dbMin={dbMin} tint={tint} snapshots={snapshots} frozen={frozen} zoomMin={zoomMin} zoomMax={zoomMax} selectedHz={selectedHz} bandMin={bandMin} bandMax={bandMax} onSelectHz={setSelectedHz} onBand={setBand} onZoom={setZoom} />
           {landscape && <LandscapeHud onUnlock={() => void unlock()} online={pwa.online} />}
-          {needsGesture && (
-            <div className="absolute inset-x-0 bottom-0 z-30 flex justify-center p-1.5">
-              <div className="flex w-full max-w-lg items-center gap-1.5 rounded-sm bg-surface/95 px-2 py-1 shadow-[var(--shadow-panel)] backdrop-blur-sm">
-                <p className="mr-auto min-w-0 truncate font-display text-xs font-bold tracking-[0.12em] text-fg uppercase italic">Audio</p>
-                <Button variant="primary" size="sm" className="h-7 min-h-7 px-2.5" onClick={() => void unlock()}>Demo</Button>
-                <Button variant="outline" size="sm" className="h-7 min-h-7 px-2.5" onClick={() => void onMic()}>Mic</Button>
-                <Button variant="ghost" size="icon-sm" className="size-7 min-h-7 min-w-7" aria-label="Ocultar reproductor" onClick={() => setNeedsGesture(false)}><span className="text-sm leading-none">×</span></Button>
-              </div>
-            </div>
-          )}
+          <AudioDock source={source} running={running} fileName={fileName} muted={muted} volume={volume} playlist={playlist} activeId={activeId} onDemo={() => void onDemo()} onMic={() => void onMic()} onFile={(f) => void onFile(f)} onPlayItem={(item) => void onPlayItem(item)} onMute={onMute} onVolume={onVolume} />
           {dragOver && <div className="absolute inset-0 z-40 flex items-center justify-center bg-bg/70 text-sm text-fg">Suelta el audio para analizarlo</div>}
         </div>
         <MeterColumn ref={metersRef} wide={hideChrome} />
