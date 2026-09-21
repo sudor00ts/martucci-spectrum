@@ -71,25 +71,21 @@ export type AnalyzerFrame = {
 };
 
 type Biquad = { b0: number; b1: number; b2: number; a1: number; a2: number; z1: number; z2: number };
-
 function biquad(b0: number, b1: number, b2: number, a1: number, a2: number): Biquad {
   return { b0, b1, b2, a1, a2, z1: 0, z2: 0 };
 }
-
 function runBiquad(f: Biquad, x: number) {
   const y = f.b0 * x + f.z1;
   f.z1 = f.b1 * x - f.a1 * y + f.z2;
   f.z2 = f.b2 * x - f.a2 * y;
   return y;
 }
-
 function kFilters() {
   return {
     shelf: biquad(1.53512485958697, -2.69169618940638, 1.19839281085285, -1.69065929318241, 0.73248077421585),
     hp: biquad(1.0, -2.0, 1.0, -1.99004745483398, 0.99007225036621),
   };
 }
-
 function dbFromAmp(amp: number) {
   return 20 * Math.log10(Math.max(amp, 1e-12));
 }
@@ -150,6 +146,8 @@ export class AudioEngine {
   private fileName: string | null = null;
   private settings: EngineSettings;
   private disposed = false;
+  private outputGain = 0.78;
+  private muted = false;
 
   constructor(settings: EngineSettings) {
     this.settings = settings;
@@ -193,6 +191,36 @@ export class AudioEngine {
     if (this.ctx && this.ctx.state === "suspended") {
       try { await this.ctx.resume(); } catch { /* user gesture required */ }
     }
+    await this.primeOutput();
+  }
+
+  async primeOutput() {
+    if (!this.ctx) return;
+    try {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      g.gain.value = 0.00008;
+      osc.connect(g);
+      g.connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.04);
+    } catch { /* ignore */ }
+    try {
+      const el = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
+      el.volume = 0.01;
+      await el.play();
+      el.pause();
+    } catch { /* still blocked until tap */ }
+  }
+
+  setOutputGain(value: number) {
+    this.outputGain = Math.min(1, Math.max(0, value));
+    this.applyMonitor();
+  }
+
+  setMuted(muted: boolean) {
+    this.muted = muted;
+    this.applyMonitor();
   }
 
   setFrozen(frozen: boolean) { this.frozen = frozen; }
@@ -233,11 +261,7 @@ export class AudioEngine {
       this.holdM = new Float32Array(n2);
       this.maxL = new Float32Array(n2);
       this.maxR = new Float32Array(n2);
-      fill(this.holdL, -140);
-      fill(this.holdR, -140);
-      fill(this.holdM, -140);
-      fill(this.maxL, -140);
-      fill(this.maxR, -140);
+      fill(this.holdL, -140); fill(this.holdR, -140); fill(this.holdM, -140); fill(this.maxL, -140); fill(this.maxR, -140);
       if (this.analyserL) this.analyserL.fftSize = next.fftSize;
       if (this.analyserR) this.analyserR.fftSize = next.fftSize;
     }
@@ -322,7 +346,12 @@ export class AudioEngine {
 
   private setMonitor(kind: SourceKind) {
     if (!this.silent) return;
-    this.silent.gain.value = kind === "demo" || kind === "file" ? 0.32 : 0;
+    const live = kind === "demo" || kind === "file";
+    this.silent.gain.value = live && !this.muted ? this.outputGain : 0;
+  }
+
+  private applyMonitor() {
+    this.setMonitor(this.source);
   }
 
   private clearInput() {
@@ -425,7 +454,6 @@ export class AudioEngine {
     const l = this.timeL;
     const r = this.timeR;
     const n = l.length;
-    const sr = this.ctx?.sampleRate ?? 48000;
     const peakDecay = Math.pow(10, -1 / (1.7 * (1 / dt)));
     const tpDecay = Math.pow(10, -1 / (1.2 * (1 / dt)));
     const rmsAlpha = 1 - Math.exp(-dt / 0.3);
@@ -447,14 +475,8 @@ export class AudioEngine {
       accR += b * b;
       num += a * b;
       if (aa >= 0.999 || bb >= 0.999) this.clipCount += 1;
-      const iL = Math.abs(prevL + (a - prevL) * 0.25);
-      const iL2 = Math.abs(prevL + (a - prevL) * 0.5);
-      const iL3 = Math.abs(prevL + (a - prevL) * 0.75);
-      const iR = Math.abs(prevR + (b - prevR) * 0.25);
-      const iR2 = Math.abs(prevR + (b - prevR) * 0.5);
-      const iR3 = Math.abs(prevR + (b - prevR) * 0.75);
-      tpL = Math.max(tpL, aa, iL, iL2, iL3);
-      tpR = Math.max(tpR, bb, iR, iR2, iR3);
+      tpL = Math.max(tpL, aa, Math.abs(prevL + (a - prevL) * 0.25), Math.abs(prevL + (a - prevL) * 0.5), Math.abs(prevL + (a - prevL) * 0.75));
+      tpR = Math.max(tpR, bb, Math.abs(prevR + (b - prevR) * 0.25), Math.abs(prevR + (b - prevR) * 0.5), Math.abs(prevR + (b - prevR) * 0.75));
       prevL = a;
       prevR = b;
       const kL = runBiquad(this.kL.hp, runBiquad(this.kL.shelf, a));
@@ -480,7 +502,6 @@ export class AudioEngine {
     this.msM += (meanSq - this.msM) * momAlpha;
     this.msS += (meanSq - this.msS) * shortAlpha;
     this.msI += (meanSq - this.msI) * intAlpha;
-    void sr;
   }
 
   private frame(): AnalyzerFrame {
@@ -493,30 +514,16 @@ export class AudioEngine {
       sampleRate: this.ctx?.sampleRate ?? 48000,
       fftSize: this.settings.fftSize,
       binCount: this.magL.length,
-      magL: this.magL,
-      magR: this.magR,
-      magM: this.magM,
-      magS: this.magS,
-      holdL: this.holdL,
-      holdR: this.holdR,
-      holdM: this.holdM,
-      maxL: this.maxL,
-      maxR: this.maxR,
-      peakL: dbFromAmp(this.peakL),
-      peakR: dbFromAmp(this.peakR),
-      rmsL: dbFromAmp(rmsL),
-      rmsR: dbFromAmp(rmsR),
-      truePeakL: dbFromAmp(this.truePeakL),
-      truePeakR: dbFromAmp(this.truePeakR),
-      lufsM: lufs(this.msM),
-      lufsS: lufs(this.msS),
-      lufsI: lufs(this.msI),
-      correlation: corr,
-      clipCount: this.clipCount,
+      magL: this.magL, magR: this.magR, magM: this.magM, magS: this.magS,
+      holdL: this.holdL, holdR: this.holdR, holdM: this.holdM, maxL: this.maxL, maxR: this.maxR,
+      peakL: dbFromAmp(this.peakL), peakR: dbFromAmp(this.peakR),
+      rmsL: dbFromAmp(rmsL), rmsR: dbFromAmp(rmsR),
+      truePeakL: dbFromAmp(this.truePeakL), truePeakR: dbFromAmp(this.truePeakR),
+      lufsM: lufs(this.msM), lufsS: lufs(this.msS), lufsI: lufs(this.msI),
+      correlation: corr, clipCount: this.clipCount,
       crestL: dbFromAmp(this.peakL) - dbFromAmp(rmsL),
       crestR: dbFromAmp(this.peakR) - dbFromAmp(rmsR),
-      xy: this.xy,
-      xyLen: this.xy.length,
+      xy: this.xy, xyLen: this.xy.length,
       running: this.ctx?.state === "running" && this.source !== "idle",
       source: this.source,
     };
