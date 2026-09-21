@@ -68,7 +68,7 @@ function scaleAround(min: number, max: number, factor: number, around: number | 
 const defaults: AnalyzerSettings = {
   fftSize: 4096,
   windowName: "hann",
-  slope: 4.5,
+  slope: 0,
   smoothing: 12,
   secondary: "peak",
   dbMin: -90,
