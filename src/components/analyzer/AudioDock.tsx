@@ -20,6 +20,8 @@ type Props = {
   onMic: () => void;
   onFile: (file: File) => void;
   onPlayItem: (item: PlaylistItem) => void;
+  onPlay: () => void;
+  onStop: () => void;
   onMute: () => void;
   onVolume: (value: number) => void;
 };
@@ -36,6 +38,8 @@ export function AudioDock({
   onMic,
   onFile,
   onPlayItem,
+  onPlay,
+  onStop,
   onMute,
   onVolume,
 }: Props) {
@@ -67,13 +71,19 @@ export function AudioDock({
           <p className="min-w-0 flex-1 truncate font-display text-[10px] font-bold tracking-[0.14em] text-fg/90 uppercase italic">
             {label}
           </p>
-          <Button variant="primary" size="sm" className="h-6 min-h-6 px-2 text-[10px]" onClick={onDemo}>
+          <Button variant="primary" size="sm" className="h-6 min-h-6 px-2 text-[10px]" onClick={onPlay} disabled={running && source !== "idle"}>
+            Play
+          </Button>
+          <Button variant="outline" size="sm" className="h-6 min-h-6 px-2 text-[10px]" onClick={onStop} disabled={!running && source === "idle"}>
+            Stop
+          </Button>
+          <Button variant="ghost" size="sm" className="h-6 min-h-6 px-2 text-[10px]" onClick={onDemo}>
             Demo
           </Button>
-          <Button variant="outline" size="sm" className="h-6 min-h-6 px-2 text-[10px]" onClick={onMic}>
+          <Button variant="ghost" size="sm" className="h-6 min-h-6 px-2 text-[10px]" onClick={onMic}>
             Mic
           </Button>
-          <Button variant="outline" size="sm" className="h-6 min-h-6 px-2 text-[10px]" onClick={() => fileRef.current?.click()}>
+          <Button variant="ghost" size="sm" className="h-6 min-h-6 px-2 text-[10px]" onClick={() => fileRef.current?.click()}>
             Archivo
           </Button>
           <Button variant="ghost" size="sm" className="h-6 min-h-6 px-2 text-[10px]" onClick={() => setListOpen((v) => !v)}>
