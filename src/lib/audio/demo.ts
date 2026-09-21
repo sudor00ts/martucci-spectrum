@@ -80,12 +80,47 @@ export function connectFileBuffer(ctx: AudioContext, buffer: AudioBuffer, dest: 
   src.start();
   return {
     stop() {
-      try {
-        src.stop();
-      } catch {
-        /* already stopped */
-      }
+      try { src.stop(); } catch { /* already stopped */ }
       src.disconnect();
     },
   };
+}
+
+export function audioBufferToWav(buffer: AudioBuffer): Blob {
+  const ch = Math.min(2, buffer.numberOfChannels);
+  const sr = buffer.sampleRate;
+  const n = buffer.length;
+  const L = buffer.getChannelData(0);
+  const R = ch > 1 ? buffer.getChannelData(1) : L;
+  const bytes = n * ch * 2;
+  const out = new ArrayBuffer(44 + bytes);
+  const view = new DataView(out);
+  const write = (offset: number, text: string) => {
+    for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i));
+  };
+  write(0, "RIFF");
+  view.setUint32(4, 36 + bytes, true);
+  write(8, "WAVE");
+  write(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, ch, true);
+  view.setUint32(24, sr, true);
+  view.setUint32(28, sr * ch * 2, true);
+  view.setUint16(32, ch * 2, true);
+  view.setUint16(34, 16, true);
+  write(36, "data");
+  view.setUint32(40, bytes, true);
+  let o = 44;
+  for (let i = 0; i < n; i++) {
+    const a = Math.max(-1, Math.min(1, L[i] ?? 0));
+    const b = Math.max(-1, Math.min(1, R[i] ?? 0));
+    view.setInt16(o, a < 0 ? a * 0x8000 : a * 0x7fff, true);
+    o += 2;
+    if (ch > 1) {
+      view.setInt16(o, b < 0 ? b * 0x8000 : b * 0x7fff, true);
+      o += 2;
+    }
+  }
+  return new Blob([out], { type: "audio/wav" });
 }
