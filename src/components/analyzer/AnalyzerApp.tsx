@@ -25,6 +25,7 @@ export function AnalyzerApp() {
   const fileRef = useRef<HTMLInputElement>(null);
   const lastFrame = useRef<AnalyzerFrame | null>(null);
   const filesRef = useRef<Map<string, File>>(new Map());
+  const lastPlayRef = useRef<PlaylistItem>(DEMO_ITEM);
   const landscape = usePhoneLandscape();
   const pwa = usePwaInstall();
 
@@ -96,10 +97,12 @@ export function AnalyzerApp() {
 
   const onDemo = useCallback(async () => {
     setMicError(null);
+    lastPlayRef.current = DEMO_ITEM;
     await engineRef.current?.startDemo();
     engineRef.current?.setOutputGain(volume);
     engineRef.current?.setMuted(muted);
     setSource("demo");
+    setRunning(true);
     setActiveId("demo");
     setFileName(null);
   }, [muted, volume]);
@@ -109,6 +112,7 @@ export function AnalyzerApp() {
     try {
       await engineRef.current?.startMic();
       setSource("mic");
+      setRunning(true);
       setFileName(null);
     } catch (err) {
       const message =
@@ -123,12 +127,15 @@ export function AnalyzerApp() {
     setMicError(null);
     try {
       const id = `file-${file.name}-${file.size}`;
+      const item: PlaylistItem = { id, label: file.name, kind: "file" };
       filesRef.current.set(id, file);
-      setPlaylist((prev) => (prev.some((item) => item.id === id) ? prev : [...prev, { id, label: file.name, kind: "file" }]));
+      lastPlayRef.current = item;
+      setPlaylist((prev) => (prev.some((row) => row.id === id) ? prev : [...prev, item]));
       await engineRef.current?.startFile(file);
       engineRef.current?.setOutputGain(volume);
       engineRef.current?.setMuted(muted);
       setSource("file");
+      setRunning(true);
       setActiveId(id);
       setFileName(file.name);
     } catch {
@@ -137,6 +144,7 @@ export function AnalyzerApp() {
   }, [muted, volume]);
 
   const onPlayItem = useCallback(async (item: PlaylistItem) => {
+    lastPlayRef.current = item;
     if (item.kind === "demo") {
       await onDemo();
       return;
@@ -144,6 +152,20 @@ export function AnalyzerApp() {
     const file = filesRef.current.get(item.id);
     if (file) await onFile(file);
   }, [onDemo, onFile]);
+
+  const onPlay = useCallback(async () => {
+    if (source === "mic") {
+      await onMic();
+      return;
+    }
+    await onPlayItem(lastPlayRef.current);
+  }, [onMic, onPlayItem, source]);
+
+  const onStop = useCallback(() => {
+    engineRef.current?.stop();
+    setRunning(false);
+    setSource("idle");
+  }, []);
 
   const onVolume = useCallback((value: number) => {
     setVolume(value);
@@ -184,7 +206,8 @@ export function AnalyzerApp() {
       if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
       if (e.code === "Space") {
         e.preventDefault();
-        useAnalyzerStore.getState().toggleFrozen();
+        if (running) onStop();
+        else void onPlay();
       } else if (e.key === "m" || e.key === "M") void onMic();
       else if (e.key === "d" || e.key === "D") void onDemo();
       else if (e.key === "w" || e.key === "W") useAnalyzerStore.getState().toggleWide();
@@ -197,7 +220,7 @@ export function AnalyzerApp() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onDemo, onMic, onReset, onSnapshot]);
+  }, [onDemo, onMic, onPlay, onReset, onSnapshot, onStop, running]);
 
   return (
     <div
@@ -216,7 +239,7 @@ export function AnalyzerApp() {
         <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-inset">
           <SpectrumCanvas ref={spectrumRef} channel={channel} secondary={secondary} dbMin={dbMin} tint={tint} snapshots={snapshots} frozen={frozen} zoomMin={zoomMin} zoomMax={zoomMax} selectedHz={selectedHz} bandMin={bandMin} bandMax={bandMax} onSelectHz={setSelectedHz} onBand={setBand} onZoom={setZoom} />
           {landscape && <LandscapeHud onUnlock={() => void unlock()} online={pwa.online} />}
-          <AudioDock source={source} running={running} fileName={fileName} muted={muted} volume={volume} playlist={playlist} activeId={activeId} onDemo={() => void onDemo()} onMic={() => void onMic()} onFile={(f) => void onFile(f)} onPlayItem={(item) => void onPlayItem(item)} onMute={onMute} onVolume={onVolume} />
+          <AudioDock source={source} running={running} fileName={fileName} muted={muted} volume={volume} playlist={playlist} activeId={activeId} onDemo={() => void onDemo()} onMic={() => void onMic()} onFile={(f) => void onFile(f)} onPlayItem={(item) => void onPlayItem(item)} onPlay={() => void onPlay()} onStop={onStop} onMute={onMute} onVolume={onVolume} />
           {dragOver && <div className="absolute inset-0 z-40 flex items-center justify-center bg-bg/70 text-sm text-fg">Suelta el audio para analizarlo</div>}
         </div>
         <MeterColumn ref={metersRef} wide={hideChrome} />
