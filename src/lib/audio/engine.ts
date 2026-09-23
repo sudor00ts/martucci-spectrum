@@ -336,21 +336,21 @@ export class AudioEngine {
     if (this.source === "idle") return;
     this.paused = true;
     if (this.speaker) this.speaker.pause();
-    this.stopSource?.();
-    this.stopSource = null;
+    void this.ctx?.suspend();
   }
 
   async resumePlayback() {
     if (this.source === "idle") return;
     this.paused = false;
-    if (this.ctx && this.inputGain && this.lastBuffer) {
-      this.stopSource?.();
+    if (this.ctx && this.ctx.state === "suspended") {
+      try { await this.ctx.resume(); } catch { /* gesture */ }
+    }
+    if (!this.stopSource && this.ctx && this.inputGain && this.lastBuffer) {
       this.stopSource = connectFileBuffer(this.ctx, this.lastBuffer, this.inputGain).stop;
     }
     if (this.speaker && this.speaker.src) {
       try { await this.speaker.play(); } catch { /* gesture */ }
     }
-    await this.resume();
   }
 
   async rewind() {
@@ -477,6 +477,10 @@ export class AudioEngine {
 
   private process() {
     if (!this.analyserL || !this.analyserR || !this.ctx) return;
+    if (this.paused) {
+      this.onFrame?.(this.frame());
+      return;
+    }
     const now = performance.now();
     const dt = Math.min(0.08, Math.max(0.008, (now - this.lastTs) / 1000));
     this.lastTs = now;
