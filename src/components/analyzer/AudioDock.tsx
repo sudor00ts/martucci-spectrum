@@ -11,6 +11,7 @@ export type PlaylistItem = {
 type Props = {
   source: "idle" | "demo" | "mic" | "file";
   running: boolean;
+  paused: boolean;
   fileName: string | null;
   muted: boolean;
   volume: number;
@@ -21,7 +22,9 @@ type Props = {
   onFile: (file: File) => void;
   onPlayItem: (item: PlaylistItem) => void;
   onPlay: () => void;
+  onPause: () => void;
   onStop: () => void;
+  onRewind: () => void;
   onMute: () => void;
   onVolume: (value: number) => void;
 };
@@ -29,6 +32,7 @@ type Props = {
 export function AudioDock({
   source,
   running,
+  paused,
   fileName,
   muted,
   volume,
@@ -39,7 +43,9 @@ export function AudioDock({
   onFile,
   onPlayItem,
   onPlay,
+  onPause,
   onStop,
+  onRewind,
   onMute,
   onVolume,
 }: Props) {
@@ -48,6 +54,7 @@ export function AudioDock({
   const fileRef = useRef<HTMLInputElement>(null);
   const label =
     source === "mic" ? "Mic" : source === "file" ? fileName ?? "Archivo" : source === "demo" ? "Demo" : "Audio";
+  const canControl = source === "demo" || source === "file" || paused;
 
   if (!open) {
     return (
@@ -67,14 +74,23 @@ export function AudioDock({
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center p-1.5">
       <div className="pointer-events-auto w-full max-w-lg overflow-hidden rounded-md bg-bg/42 shadow-[0_8px_28px_rgb(0_0_0_/_0.28)] backdrop-blur-md">
         <div className="flex items-center gap-1 px-1.5 py-1">
-          <span className={cn("ml-1 size-1.5 shrink-0 rounded-full", running ? "bg-accent" : "bg-muted")} />
+          <span className={cn("ml-1 size-1.5 shrink-0 rounded-full", running ? "bg-accent" : paused ? "bg-amber-400" : "bg-muted")} />
           <p className="min-w-0 flex-1 truncate font-display text-[10px] font-bold tracking-[0.14em] text-fg/90 uppercase italic">
-            {label}
+            {paused ? "Pausa" : label}
           </p>
-          <Button variant="primary" size="sm" className="h-6 min-h-6 px-2 text-[10px]" onClick={onPlay} disabled={running && source !== "idle"}>
-            Play
+          <Button variant="outline" size="sm" className="h-6 min-h-6 px-2 text-[10px]" onClick={onRewind} disabled={!canControl && source === "idle"} aria-label="Rewind">
+            ⏮
           </Button>
-          <Button variant="outline" size="sm" className="h-6 min-h-6 px-2 text-[10px]" onClick={onStop} disabled={!running && source === "idle"}>
+          {running ? (
+            <Button variant="primary" size="sm" className="h-6 min-h-6 px-2 text-[10px]" onClick={onPause}>
+              Pausa
+            </Button>
+          ) : (
+            <Button variant="primary" size="sm" className="h-6 min-h-6 px-2 text-[10px]" onClick={onPlay}>
+              Play
+            </Button>
+          )}
+          <Button variant="outline" size="sm" className="h-6 min-h-6 px-2 text-[10px]" onClick={onStop} disabled={!running && source === "idle" && !paused}>
             Stop
           </Button>
           <Button variant="ghost" size="sm" className="h-6 min-h-6 px-2 text-[10px]" onClick={onDemo}>
