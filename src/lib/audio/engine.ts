@@ -150,6 +150,8 @@ export class AudioEngine {
   private muted = false;
   private speaker: HTMLAudioElement | null = null;
   private objectUrl: string | null = null;
+  private lastBuffer: AudioBuffer | null = null;
+  private paused = false;
 
   constructor(settings: EngineSettings) {
     this.settings = settings;
@@ -186,14 +188,15 @@ export class AudioEngine {
 
   getSource() { return this.source; }
   getFileName() { return this.fileName; }
-  isRunning() { return this.ctx?.state === "running" || Boolean(this.speaker && !this.speaker.paused); }
+  isRunning() { return !this.paused && (this.ctx?.state === "running" || Boolean(this.speaker && !this.speaker.paused)); }
+  isPaused() { return this.paused; }
 
   async resume() {
     if (!this.ctx) await this.ensureContext();
     if (this.ctx && this.ctx.state === "suspended") {
       try { await this.ctx.resume(); } catch { /* user gesture required */ }
     }
-    if (this.speaker && this.speaker.paused && this.speaker.src) {
+    if (!this.paused && this.speaker && this.speaker.paused && this.speaker.src) {
       try { await this.speaker.play(); } catch { /* needs gesture */ }
     }
   }
@@ -275,6 +278,8 @@ export class AudioEngine {
     if (!this.ctx || !this.inputGain) return;
     this.clearInput();
     const buffer = createDemoBuffer(this.ctx);
+    this.lastBuffer = buffer;
+    this.paused = false;
     const handle = connectFileBuffer(this.ctx, buffer, this.inputGain);
     this.stopSource = handle.stop;
     this.source = "demo";
@@ -307,6 +312,8 @@ export class AudioEngine {
     const buf = await file.arrayBuffer();
     const decoded = await this.ctx.decodeAudioData(buf.slice(0));
     this.clearInput();
+    this.lastBuffer = decoded;
+    this.paused = false;
     const handle = connectFileBuffer(this.ctx, decoded, this.inputGain);
     this.stopSource = handle.stop;
     this.source = "file";
@@ -317,10 +324,44 @@ export class AudioEngine {
   }
 
   stop() {
+    this.paused = false;
+    this.lastBuffer = null;
     this.clearInput();
     this.source = "idle";
     this.fileName = null;
     this.setMonitor("idle");
+  }
+
+  pause() {
+    if (this.source === "idle") return;
+    this.paused = true;
+    if (this.speaker) this.speaker.pause();
+    this.stopSource?.();
+    this.stopSource = null;
+  }
+
+  async resumePlayback() {
+    if (this.source === "idle") return;
+    this.paused = false;
+    if (this.ctx && this.inputGain && this.lastBuffer) {
+      this.stopSource?.();
+      this.stopSource = connectFileBuffer(this.ctx, this.lastBuffer, this.inputGain).stop;
+    }
+    if (this.speaker && this.speaker.src) {
+      try { await this.speaker.play(); } catch { /* gesture */ }
+    }
+    await this.resume();
+  }
+
+  async rewind() {
+    if (this.speaker) this.speaker.currentTime = 0;
+    if (this.ctx && this.inputGain && this.lastBuffer) {
+      this.stopSource?.();
+      this.stopSource = connectFileBuffer(this.ctx, this.lastBuffer, this.inputGain).stop;
+    }
+    if (!this.paused && this.speaker && this.speaker.src) {
+      try { await this.speaker.play(); } catch { /* gesture */ }
+    }
   }
 
   dispose() {
@@ -557,7 +598,7 @@ export class AudioEngine {
       crestL: dbFromAmp(this.peakL) - dbFromAmp(rmsL),
       crestR: dbFromAmp(this.peakR) - dbFromAmp(rmsR),
       xy: this.xy, xyLen: this.xy.length,
-      running: (this.ctx?.state === "running" || Boolean(this.speaker && !this.speaker.paused)) && this.source !== "idle",
+      running: !this.paused && this.source !== "idle" && (this.ctx?.state === "running" || Boolean(this.speaker && !this.speaker.paused)),
       source: this.source,
     };
   }
