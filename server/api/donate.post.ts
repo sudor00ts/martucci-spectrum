@@ -42,7 +42,6 @@ export default defineEventHandler(async (event) => {
         failure: `${origin}/?donate=error`,
       },
       auto_return: "approved",
-      purpose: "onboarding_credits",
     }),
   });
 
