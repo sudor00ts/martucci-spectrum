@@ -40,6 +40,9 @@ export function AnalyzerApp() {
   const [activeId, setActiveId] = useState("demo");
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(0.78);
+  const [position, setPosition] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [peaks, setPeaks] = useState<number[]>([]);
 
   const fftSize = useAnalyzerStore((s) => s.fftSize);
   const windowName = useAnalyzerStore((s) => s.windowName);
@@ -95,6 +98,17 @@ export function AnalyzerApp() {
   useEffect(() => {
     engineRef.current?.setFrozen(frozen);
   }, [frozen]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const transport = engineRef.current?.getTransport();
+      if (!transport) return;
+      setPosition(transport.current);
+      setDuration(transport.duration);
+      setPeaks(transport.peaks);
+    }, 200);
+    return () => window.clearInterval(id);
+  }, []);
 
   const onDemo = useCallback(async () => {
     setMicError(null);
@@ -199,6 +213,11 @@ export function AnalyzerApp() {
     engineRef.current?.setMuted(value <= 0);
   }, []);
 
+  const onSeek = useCallback((seconds: number) => {
+    setPosition(seconds);
+    void engineRef.current?.seek(seconds);
+  }, []);
+
   const onMute = useCallback(() => {
     setMuted((prev) => {
       const next = !prev;
@@ -264,7 +283,7 @@ export function AnalyzerApp() {
         <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-inset">
           <SpectrumCanvas ref={spectrumRef} channel={channel} secondary={secondary} dbMin={dbMin} tint={tint} snapshots={snapshots} frozen={frozen} zoomMin={zoomMin} zoomMax={zoomMax} selectedHz={selectedHz} bandMin={bandMin} bandMax={bandMax} onSelectHz={setSelectedHz} onBand={setBand} onZoom={setZoom} />
           {landscape && <LandscapeHud onUnlock={() => void unlock()} online={pwa.online} />}
-          <AudioDock source={source} running={running} paused={paused} fileName={fileName} muted={muted} volume={volume} playlist={playlist} activeId={activeId} onDemo={() => void onDemo()} onMic={() => void onMic()} onFile={(f) => void onFile(f)} onPlayItem={(item) => void onPlayItem(item)} onPlay={() => void onPlay()} onPause={onPause} onStop={onStop} onRewind={() => void onRewind()} onMute={onMute} onVolume={onVolume} />
+          <AudioDock source={source} running={running} paused={paused} fileName={fileName} muted={muted} volume={volume} playlist={playlist} activeId={activeId} position={position} duration={duration} peaks={peaks} onSeek={onSeek} onDemo={() => void onDemo()} onMic={() => void onMic()} onFile={(f) => void onFile(f)} onPlayItem={(item) => void onPlayItem(item)} onPlay={() => void onPlay()} onPause={onPause} onStop={onStop} onRewind={() => void onRewind()} onMute={onMute} onVolume={onVolume} />
           {dragOver && <div className="absolute inset-0 z-40 flex items-center justify-center bg-bg/70 text-sm text-fg">Suelta el audio para analizarlo</div>}
         </div>
         <MeterColumn ref={metersRef} wide={hideChrome} />

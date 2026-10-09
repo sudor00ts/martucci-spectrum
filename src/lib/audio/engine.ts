@@ -12,7 +12,7 @@ import {
   peakHold,
   type WindowName,
 } from "@/lib/audio/fft";
-import { audioBufferToWav, connectFileBuffer, createDemoBuffer } from "@/lib/audio/demo";
+import { audioBufferToWav, connectFileBuffer, createDemoBuffer, waveformPeaks } from "@/lib/audio/demo";
 
 export type SourceKind = "idle" | "demo" | "mic" | "file";
 export type ChannelView = "sum" | "left" | "right" | "mid" | "side" | "overlay";
@@ -152,6 +152,9 @@ export class AudioEngine {
   private objectUrl: string | null = null;
   private lastBuffer: AudioBuffer | null = null;
   private paused = false;
+  private offsetSec = 0;
+  private startedAt = 0;
+  private peaks: number[] = [];
 
   constructor(settings: EngineSettings) {
     this.settings = settings;
@@ -190,6 +193,38 @@ export class AudioEngine {
   getFileName() { return this.fileName; }
   isRunning() { return !this.paused && (this.ctx?.state === "running" || Boolean(this.speaker && !this.speaker.paused)); }
   isPaused() { return this.paused; }
+
+  getTransport() {
+    const duration = this.lastBuffer?.duration ?? (Number.isFinite(this.speaker?.duration) ? this.speaker!.duration : 0);
+    let current = this.offsetSec;
+    if (this.speaker && this.speaker.src && Number.isFinite(this.speaker.currentTime) && this.speaker.duration > 0) {
+      current = this.speaker.currentTime;
+    } else if (this.ctx && this.startedAt && !this.paused && this.ctx.state === "running") {
+      current = this.offsetSec + (this.ctx.currentTime - this.startedAt);
+    }
+    if (duration > 0) current = ((current % duration) + duration) % duration;
+    return { current, duration: Number.isFinite(duration) ? duration : 0, peaks: this.peaks };
+  }
+
+  async seek(seconds: number) {
+    if (!this.lastBuffer || !this.ctx || !this.inputGain) return;
+    const duration = this.lastBuffer.duration;
+    const next = Math.min(Math.max(0, seconds), Math.max(0, duration - 0.05));
+    this.offsetSec = next;
+    this.startedAt = this.ctx.currentTime;
+    this.stopSource?.();
+    this.stopSource = connectFileBuffer(this.ctx, this.lastBuffer, this.inputGain, next).stop;
+    if (this.speaker && this.speaker.src) {
+      try { this.speaker.currentTime = next; } catch { /* not seekable yet */ }
+      if (!this.paused) {
+        try { await this.speaker.play(); } catch { /* gesture */ }
+      }
+    }
+    if (this.paused) {
+      this.speaker?.pause();
+      void this.ctx.suspend();
+    }
+  }
 
   async resume() {
     if (!this.ctx) await this.ensureContext();
@@ -279,8 +314,11 @@ export class AudioEngine {
     this.clearInput();
     const buffer = createDemoBuffer(this.ctx);
     this.lastBuffer = buffer;
+    this.peaks = waveformPeaks(buffer);
+    this.offsetSec = 0;
+    this.startedAt = this.ctx.currentTime;
     this.paused = false;
-    const handle = connectFileBuffer(this.ctx, buffer, this.inputGain);
+    const handle = connectFileBuffer(this.ctx, buffer, this.inputGain, 0);
     this.stopSource = handle.stop;
     this.source = "demo";
     this.fileName = null;
@@ -313,8 +351,11 @@ export class AudioEngine {
     const decoded = await this.ctx.decodeAudioData(buf.slice(0));
     this.clearInput();
     this.lastBuffer = decoded;
+    this.peaks = waveformPeaks(decoded);
+    this.offsetSec = 0;
+    this.startedAt = this.ctx.currentTime;
     this.paused = false;
-    const handle = connectFileBuffer(this.ctx, decoded, this.inputGain);
+    const handle = connectFileBuffer(this.ctx, decoded, this.inputGain, 0);
     this.stopSource = handle.stop;
     this.source = "file";
     this.fileName = file.name;
@@ -326,6 +367,9 @@ export class AudioEngine {
   stop() {
     this.paused = false;
     this.lastBuffer = null;
+    this.peaks = [];
+    this.offsetSec = 0;
+    this.startedAt = 0;
     this.clearInput();
     this.source = "idle";
     this.fileName = null;
@@ -355,9 +399,11 @@ export class AudioEngine {
 
   async rewind() {
     if (this.speaker) this.speaker.currentTime = 0;
+    this.offsetSec = 0;
+    this.startedAt = this.ctx?.currentTime ?? 0;
     if (this.ctx && this.inputGain && this.lastBuffer) {
       this.stopSource?.();
-      this.stopSource = connectFileBuffer(this.ctx, this.lastBuffer, this.inputGain).stop;
+      this.stopSource = connectFileBuffer(this.ctx, this.lastBuffer, this.inputGain, 0).stop;
     }
     if (!this.paused && this.speaker && this.speaker.src) {
       try { await this.speaker.play(); } catch { /* gesture */ }

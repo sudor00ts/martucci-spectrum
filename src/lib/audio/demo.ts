@@ -72,12 +72,34 @@ export function createDemoBuffer(ctx: AudioContext): AudioBuffer {
   return buffer;
 }
 
-export function connectFileBuffer(ctx: AudioContext, buffer: AudioBuffer, dest: AudioNode): { stop: () => void } {
+export function waveformPeaks(buffer: AudioBuffer, bars = 128): number[] {
+  const ch = buffer.numberOfChannels;
+  const n = buffer.length;
+  const channels = Array.from({ length: ch }, (_, i) => buffer.getChannelData(i));
+  const peaks = new Array<number>(bars);
+  const size = Math.max(1, Math.floor(n / bars));
+  let max = 1e-6;
+  for (let b = 0; b < bars; b++) {
+    const start = b * size;
+    const end = Math.min(n, start + size);
+    let peak = 0;
+    for (let i = start; i < end; i += 8) {
+      for (const data of channels) peak = Math.max(peak, Math.abs(data[i] ?? 0));
+    }
+    peaks[b] = peak;
+    if (peak > max) max = peak;
+  }
+  for (let b = 0; b < bars; b++) peaks[b] = peaks[b] / max;
+  return peaks;
+}
+
+export function connectFileBuffer(ctx: AudioContext, buffer: AudioBuffer, dest: AudioNode, offset = 0): { stop: () => void } {
   const src = ctx.createBufferSource();
   src.buffer = buffer;
   src.loop = true;
   src.connect(dest);
-  src.start();
+  const startAt = Math.min(Math.max(0, offset), Math.max(0, buffer.duration - 0.05));
+  src.start(0, startAt);
   return {
     stop() {
       try { src.stop(); } catch { /* already stopped */ }

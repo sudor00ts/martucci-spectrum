@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState, type PointerEvent, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 export type PlaylistItem = {
@@ -16,6 +16,10 @@ type Props = {
   volume: number;
   playlist: PlaylistItem[];
   activeId: string;
+  position: number;
+  duration: number;
+  peaks: number[];
+  onSeek: (seconds: number) => void;
   onDemo: () => void;
   onMic: () => void;
   onFile: (file: File) => void;
@@ -27,6 +31,72 @@ type Props = {
   onMute: () => void;
   onVolume: (value: number) => void;
 };
+
+function fmt(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function SeekBar({
+  peaks,
+  position,
+  duration,
+  disabled,
+  onSeek,
+}: {
+  peaks: number[];
+  position: number;
+  duration: number;
+  disabled: boolean;
+  onSeek: (seconds: number) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const bars = peaks.length ? peaks : Array.from({ length: 72 }, () => 0.06);
+  const ratio = duration > 0 ? Math.min(1, position / duration) : 0;
+
+  function seekAt(event: PointerEvent<HTMLDivElement>) {
+    if (disabled || duration <= 0) return;
+    const box = ref.current?.getBoundingClientRect();
+    if (!box) return;
+    const t = Math.min(1, Math.max(0, (event.clientX - box.left) / box.width));
+    onSeek(t * duration);
+  }
+
+  return (
+    <div
+      ref={ref}
+      role="slider"
+      aria-label="Posición del audio"
+      aria-valuemin={0}
+      aria-valuemax={Math.round(duration)}
+      aria-valuenow={Math.round(position)}
+      aria-disabled={disabled}
+      className={cn("relative h-8 w-full overflow-hidden rounded-sm bg-black/40", disabled ? "opacity-45" : "cursor-ew-resize")}
+      onPointerDown={(event) => {
+        event.currentTarget.setPointerCapture(event.pointerId);
+        seekAt(event);
+      }}
+      onPointerMove={(event) => {
+        if (event.buttons) seekAt(event);
+      }}
+    >
+      <div className="absolute inset-x-1 inset-y-1 flex items-end gap-px">
+        {bars.map((peak, index) => (
+          <span
+            key={index}
+            className={cn("min-w-0 flex-1 rounded-[1px]", index / bars.length <= ratio ? "bg-accent/80" : "bg-fg/25")}
+            style={{ height: `${Math.max(10, peak * 100)}%` }}
+          />
+        ))}
+      </div>
+      <div className="pointer-events-none absolute inset-y-0 w-px bg-fg" style={{ left: `${ratio * 100}%` }} />
+      <span className="pointer-events-none absolute bottom-0.5 left-1 font-mono text-[9px] text-fg/85">{fmt(position)}</span>
+      <span className="pointer-events-none absolute bottom-0.5 right-1 font-mono text-[9px] text-fg/70">{fmt(duration)}</span>
+    </div>
+  );
+}
 
 function Key({
   label,
@@ -126,6 +196,10 @@ export function AudioDock({
   volume,
   playlist,
   activeId,
+  position,
+  duration,
+  peaks,
+  onSeek,
   onDemo,
   onMic,
   onFile,
@@ -143,6 +217,7 @@ export function AudioDock({
   const label =
     source === "mic" ? "Mic" : source === "file" ? fileName ?? "Archivo" : source === "demo" ? "Demo" : "Audio";
   const armed = source !== "idle" || paused;
+  const seekable = source === "demo" || source === "file" || paused;
 
   if (!open) {
     return (
@@ -167,39 +242,24 @@ export function AudioDock({
             {paused ? "Pausa" : label}
           </p>
           <div className="flex items-center gap-0.5 rounded-sm bg-black/25 p-0.5">
-            <Key label="Rewind" disabled={!armed && source === "idle"} onClick={onRewind}>
-              {Ico.rewind}
-            </Key>
-            <Key label="Play" active={running} disabled={running} onClick={onPlay}>
-              {Ico.play}
-            </Key>
-            <Key label="Pausa" active={paused} disabled={!running} onClick={onPause}>
-              {Ico.pause}
-            </Key>
-            <Key label="Stop" disabled={!armed} onClick={onStop}>
-              {Ico.stop}
-            </Key>
+            <Key label="Rewind" disabled={!armed && source === "idle"} onClick={onRewind}>{Ico.rewind}</Key>
+            <Key label="Play" active={running} disabled={running} onClick={onPlay}>{Ico.play}</Key>
+            <Key label="Pausa" active={paused} disabled={!running} onClick={onPause}>{Ico.pause}</Key>
+            <Key label="Stop" disabled={!armed} onClick={onStop}>{Ico.stop}</Key>
           </div>
           <div className="flex items-center gap-0.5">
-            <Key label="Demo" active={source === "demo"} onClick={onDemo}>
-              {Ico.demo}
-            </Key>
-            <Key label="Micrófono" active={source === "mic"} onClick={onMic}>
-              {Ico.mic}
-            </Key>
-            <Key label="Archivo" active={source === "file"} onClick={() => fileRef.current?.click()}>
-              {Ico.file}
-            </Key>
-            <Key label="Lista" active={listOpen} onClick={() => setListOpen((v) => !v)}>
-              {Ico.list}
-            </Key>
-            <Key label={muted ? "Activar sonido" : "Silenciar"} active={muted} onClick={onMute}>
-              {muted ? Ico.mute : Ico.vol}
-            </Key>
+            <Key label="Demo" active={source === "demo"} onClick={onDemo}>{Ico.demo}</Key>
+            <Key label="Micrófono" active={source === "mic"} onClick={onMic}>{Ico.mic}</Key>
+            <Key label="Archivo" active={source === "file"} onClick={() => fileRef.current?.click()}>{Ico.file}</Key>
+            <Key label="Lista" active={listOpen} onClick={() => setListOpen((v) => !v)}>{Ico.list}</Key>
+            <Key label={muted ? "Activar sonido" : "Silenciar"} active={muted} onClick={onMute}>{muted ? Ico.mute : Ico.vol}</Key>
             <Key label="Ocultar reproductor" onClick={() => setOpen(false)}>
               <span className="text-[11px] leading-none">×</span>
             </Key>
           </div>
+        </div>
+        <div className="px-2 pb-1">
+          <SeekBar peaks={peaks} position={position} duration={duration} disabled={!seekable} onSeek={onSeek} />
         </div>
         <div className="flex items-center gap-2 px-2 pb-1.5">
           <input type="range" min={0} max={1} step={0.01} value={muted ? 0 : volume} onChange={(e) => onVolume(Number(e.target.value))} className="h-1 w-full accent-current" aria-label="Volumen" />
