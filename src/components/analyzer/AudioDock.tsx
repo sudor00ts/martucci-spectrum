@@ -28,6 +28,8 @@ type Props = {
   onPause: () => void;
   onStop: () => void;
   onRewind: () => void;
+  recording: boolean;
+  onRecord: () => void;
   onMute: () => void;
   onVolume: (value: number) => void;
 };
@@ -185,6 +187,16 @@ const Ico = {
       <path d="M2.2 6.1h2.2L7.4 3.6v8.8L4.4 9.9H2.2zm10.2-2.3.9.9-1.7 1.7 1.7 1.7-.9.9-1.7-1.7-1.7 1.7-.9-.9 1.7-1.7-1.7-1.7.9-.9 1.7 1.7z" />
     </svg>
   ),
+  rec: (
+    <svg viewBox="0 0 16 16" className="size-3.5 fill-current" aria-hidden>
+      <circle cx="8" cy="8" r="4.2" />
+    </svg>
+  ),
+  recStop: (
+    <svg viewBox="0 0 16 16" className="size-3.5 fill-current" aria-hidden>
+      <path d="M4.2 4.2h7.6v7.6H4.2z" />
+    </svg>
+  ),
 };
 
 export function AudioDock({
@@ -208,6 +220,8 @@ export function AudioDock({
   onPause,
   onStop,
   onRewind,
+  recording,
+  onRecord,
   onMute,
   onVolume,
 }: Props) {
@@ -239,13 +253,14 @@ export function AudioDock({
         <div className="flex items-center gap-1.5 px-1.5 py-1">
           <span className={cn("ml-0.5 size-1.5 shrink-0 rounded-full", running ? "bg-accent" : paused ? "bg-amber-400" : "bg-muted")} />
           <p className="min-w-0 flex-1 truncate font-display text-[10px] font-bold tracking-[0.16em] text-fg/80 uppercase italic">
-            {paused ? "Pausa" : label}
+            {recording ? "Rec" : paused ? "Pausa" : label}
           </p>
           <div className="flex items-center gap-0.5 rounded-sm bg-black/25 p-0.5">
             <Key label="Rewind" disabled={!armed && source === "idle"} onClick={onRewind}>{Ico.rewind}</Key>
             <Key label="Play" active={running} disabled={running} onClick={onPlay}>{Ico.play}</Key>
             <Key label="Pausa" active={paused} disabled={!running} onClick={onPause}>{Ico.pause}</Key>
             <Key label="Stop" disabled={!armed} onClick={onStop}>{Ico.stop}</Key>
+            <Key label={recording ? "Detener grabación" : "Grabar"} active={recording} onClick={onRecord}>{recording ? Ico.recStop : Ico.rec}</Key>
           </div>
           <div className="flex items-center gap-0.5">
             <Key label="Demo" active={source === "demo"} onClick={onDemo}>{Ico.demo}</Key>

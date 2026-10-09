@@ -155,6 +155,10 @@ export class AudioEngine {
   private offsetSec = 0;
   private startedAt = 0;
   private peaks: number[] = [];
+  private recordDest: MediaStreamAudioDestinationNode | null = null;
+  private recorder: MediaRecorder | null = null;
+  private recordChunks: Blob[] = [];
+  private recording = false;
 
   constructor(settings: EngineSettings) {
     this.settings = settings;
@@ -397,6 +401,58 @@ export class AudioEngine {
     }
   }
 
+
+  isRecording() { return this.recording; }
+
+  async startRecording() {
+    await this.ensureContext();
+    if (!this.ctx || !this.inputGain) throw new Error("Audio no disponible");
+    if (this.recording) return;
+    if (this.ctx.state === "suspended") {
+      try { await this.ctx.resume(); } catch { /* gesture */ }
+    }
+    const dest = this.ctx.createMediaStreamDestination();
+    this.inputGain.connect(dest);
+    this.recordDest = dest;
+    const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ? "audio/webm;codecs=opus"
+      : MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : "";
+    this.recordChunks = [];
+    const recorder = mime ? new MediaRecorder(dest.stream, { mimeType: mime }) : new MediaRecorder(dest.stream);
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) this.recordChunks.push(event.data);
+    };
+    this.recorder = recorder;
+    this.recording = true;
+    recorder.start(250);
+  }
+
+  async stopRecording() {
+    if (!this.recording || !this.recorder) return null;
+    const recorder = this.recorder;
+    const done = new Promise<Blob>((resolve) => {
+      recorder.onstop = () => {
+        const type = recorder.mimeType || "audio/webm";
+        resolve(new Blob(this.recordChunks, { type }));
+      };
+    });
+    if (recorder.state !== "inactive") recorder.stop();
+    const blob = await done;
+    this.recording = false;
+    this.recorder = null;
+    this.recordChunks = [];
+    if (this.recordDest && this.inputGain) {
+      try { this.inputGain.disconnect(this.recordDest); } catch { /* noop */ }
+    }
+    this.recordDest = null;
+    if (blob.size < 1) return null;
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    const ext = blob.type.includes("mp4") ? "m4a" : "webm";
+    return new File([blob], `martucci-${stamp}.${ext}`, { type: blob.type || "audio/webm" });
+  }
+
   async rewind() {
     if (this.speaker) this.speaker.currentTime = 0;
     this.offsetSec = 0;
@@ -413,6 +469,7 @@ export class AudioEngine {
   dispose() {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
+    if (this.recording) void this.stopRecording();
     this.clearInput();
     void this.ctx?.close();
     this.ctx = null;

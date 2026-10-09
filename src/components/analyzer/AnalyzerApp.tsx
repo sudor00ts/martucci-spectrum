@@ -43,6 +43,7 @@ export function AnalyzerApp() {
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(0);
   const [peaks, setPeaks] = useState<number[]>([]);
+  const [recording, setRecording] = useState(false);
 
   const fftSize = useAnalyzerStore((s) => s.fftSize);
   const windowName = useAnalyzerStore((s) => s.windowName);
@@ -200,11 +201,39 @@ export function AnalyzerApp() {
   }, [onPlayItem, paused, source]);
 
   const onStop = useCallback(() => {
+    if (engineRef.current?.isRecording()) void engineRef.current.stopRecording();
+    setRecording(false);
     engineRef.current?.stop();
     setRunning(false);
     setPaused(false);
     setSource("idle");
   }, []);
+
+  const onRecord = useCallback(async () => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (engine.isRecording()) {
+      const file = await engine.stopRecording();
+      setRecording(false);
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = file.name;
+      link.click();
+      URL.revokeObjectURL(url);
+      await onFile(file);
+      return;
+    }
+    try {
+      if (engine.getSource() === "idle") await onMic();
+      await engine.startRecording();
+      setRecording(true);
+    } catch {
+      setMicError("No se pudo grabar");
+      setRecording(false);
+    }
+  }, [onFile, onMic]);
 
   const onVolume = useCallback((value: number) => {
     setVolume(value);
@@ -283,7 +312,7 @@ export function AnalyzerApp() {
         <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-inset">
           <SpectrumCanvas ref={spectrumRef} channel={channel} secondary={secondary} dbMin={dbMin} tint={tint} snapshots={snapshots} frozen={frozen} zoomMin={zoomMin} zoomMax={zoomMax} selectedHz={selectedHz} bandMin={bandMin} bandMax={bandMax} onSelectHz={setSelectedHz} onBand={setBand} onZoom={setZoom} />
           {landscape && <LandscapeHud onUnlock={() => void unlock()} online={pwa.online} />}
-          <AudioDock source={source} running={running} paused={paused} fileName={fileName} muted={muted} volume={volume} playlist={playlist} activeId={activeId} position={position} duration={duration} peaks={peaks} onSeek={onSeek} onDemo={() => void onDemo()} onMic={() => void onMic()} onFile={(f) => void onFile(f)} onPlayItem={(item) => void onPlayItem(item)} onPlay={() => void onPlay()} onPause={onPause} onStop={onStop} onRewind={() => void onRewind()} onMute={onMute} onVolume={onVolume} />
+          <AudioDock source={source} running={running} paused={paused} fileName={fileName} muted={muted} volume={volume} playlist={playlist} activeId={activeId} position={position} duration={duration} peaks={peaks} onSeek={onSeek} onDemo={() => void onDemo()} onMic={() => void onMic()} onFile={(f) => void onFile(f)} onPlayItem={(item) => void onPlayItem(item)} onPlay={() => void onPlay()} onPause={onPause} onStop={onStop} onRewind={() => void onRewind()} recording={recording} onRecord={() => void onRecord()} onMute={onMute} onVolume={onVolume} />
           {dragOver && <div className="absolute inset-0 z-40 flex items-center justify-center bg-bg/70 text-sm text-fg">Suelta el audio para analizarlo</div>}
         </div>
         <MeterColumn ref={metersRef} wide={hideChrome} />

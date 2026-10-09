@@ -1,5 +1,5 @@
 const SHELL = "martucci-shell-v3";
-const RUNTIME = "martucci-runtime-v5";
+const RUNTIME = "martucci-runtime-v6";
 
 const PRECACHE = ["/", "/favicon.svg", "/__grok/icon-180.png", "/__grok/manifest.webmanifest"];
 
