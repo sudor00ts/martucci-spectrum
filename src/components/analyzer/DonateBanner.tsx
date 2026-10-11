@@ -71,10 +71,14 @@ export function DonateBanner() {
         error?: string;
       };
       if (!res.ok) throw new Error(data.error ?? "No se pudo iniciar Mercado Pago");
+      if (data.initPoint) {
+        window.location.assign(data.initPoint);
+        return;
+      }
       if (!data.configured || !data.preferenceId || !data.publicKey) {
         setStatus("fallback");
         await copyAlias();
-        window.open(DONATE_URL, "_blank", "noopener,noreferrer");
+        setMessage("Copié el alias. En Mercado Pago elegí Transferir y pegalo.");
         return;
       }
       await loadMercadoPagoSdk();
@@ -135,12 +139,11 @@ export function DonateBanner() {
               />
             </div>
             <div id="mp-wallet-brick" className="mt-3 min-h-10" />
-            {status === "fallback" && (
-              <p className="mt-2 text-[11px] text-muted">
-                Alias copiado: <span className="font-mono text-fg">{DONATE_ALIAS}</span>
+            {(status === "fallback" || status === "error") && (
+              <p className={`mt-2 text-[11px] ${status === "error" ? "text-red-400" : "text-muted"}`}>
+                {message || <>Alias copiado: <span className="font-mono text-fg">{DONATE_ALIAS}</span></>}
               </p>
             )}
-            {status === "error" && <p className="mt-2 text-[11px] text-red-400">{message}</p>}
             <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => void copyAlias()}>
                 {copied ? "Alias copiado" : DONATE_ALIAS}

@@ -1,5 +1,5 @@
 export const DONATE_ALIAS = "spacemen3.mp";
-export const DONATE_URL = "https://www.mercadopago.com.ar/";
+export const DONATE_URL = "https://link.mercadopago.com.ar/";
 export const DONATE_LABEL = "Donar con Mercado Pago";
 export const DONATE_AMOUNTS = [1000, 2500, 5000, 10000] as const;
 export const MP_SDK_SRC = "https://sdk.mercadopago.com/js/v2";
