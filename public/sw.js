@@ -1,7 +1,7 @@
 const SHELL = "martucci-shell-v3";
-const RUNTIME = "martucci-runtime-v6";
+const RUNTIME = "martucci-runtime-v7";
 
-const PRECACHE = ["/", "/favicon.svg", "/__grok/icon-180.png", "/__grok/manifest.webmanifest"];
+const PRECACHE = ["/", "/favicon.svg", "/manifest.webmanifest", "/icons/apple-touch-icon.png", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

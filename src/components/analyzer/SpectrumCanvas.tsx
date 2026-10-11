@@ -349,14 +349,27 @@ export const SpectrumCanvas = forwardRef<SpectrumCanvasHandle, Props>(function S
     exportPng() {
       const canvas = canvasRef.current;
       if (!canvas) return;
-      canvas.toBlob((blob) => {
+      const name = `martucci-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.png`;
+      canvas.toBlob(async (blob) => {
         if (!blob) return;
+        const file = new File([blob], name, { type: "image/png" });
+        const canShare = typeof navigator.share === "function" && navigator.canShare?.({ files: [file] });
+        if (canShare) {
+          try {
+            await navigator.share({ files: [file], title: "Martucci Spectrum" });
+            return;
+          } catch (err) {
+            if (err instanceof DOMException && err.name === "AbortError") return;
+          }
+        }
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `martucci-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.png`;
+        a.download = name;
+        document.body.appendChild(a);
         a.click();
-        URL.revokeObjectURL(url);
+        a.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1500);
       }, "image/png");
     },
     capturePrimary(frame) {
