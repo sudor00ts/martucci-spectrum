@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Heart } from "lucide-react";
-import { DONATE_ALIAS, DONATE_AMOUNTS, DONATE_URL, loadMercadoPagoSdk } from "@/lib/donate";
+import { DONATE_ALIAS, DONATE_AMOUNTS } from "@/lib/donate";
 import { Button } from "@/components/ui/button";
 
 const SESSION_KEY = "martucci-donate-welcome";
@@ -10,9 +10,6 @@ export function DonateBanner() {
   const [copied, setCopied] = useState(false);
   const [amount, setAmount] = useState(2500);
   const [custom, setCustom] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "fallback" | "error">("idle");
-  const [message, setMessage] = useState("");
-  const brickRef = useRef<{ unmount?: () => void } | null>(null);
 
   useEffect(() => {
     try {
@@ -22,18 +19,8 @@ export function DonateBanner() {
     }
   }, []);
 
-  useEffect(() => {
-    return () => {
-      brickRef.current?.unmount?.();
-      brickRef.current = null;
-    };
-  }, []);
-
   function close() {
     setOpen(false);
-    brickRef.current?.unmount?.();
-    brickRef.current = null;
-    setStatus("idle");
     try {
       sessionStorage.setItem(SESSION_KEY, "1");
     } catch {
@@ -41,57 +28,18 @@ export function DonateBanner() {
     }
   }
 
+  const pesos = custom ? Math.round(Number(custom.replace(",", "."))) : amount;
+
   async function copyAlias() {
+    const text = Number.isFinite(pesos) && pesos > 0
+      ? `${DONATE_ALIAS}\nTransferencia sugerida: $${pesos.toLocaleString("es-AR")}`
+      : DONATE_ALIAS;
     try {
-      await navigator.clipboard.writeText(DONATE_ALIAS);
+      await navigator.clipboard.writeText(text);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2200);
     } catch {
       /* clipboard may be blocked */
-    }
-  }
-
-  async function startCheckout() {
-    const pesos = custom ? Math.round(Number(custom.replace(",", "."))) : amount;
-    setStatus("loading");
-    setMessage("");
-    brickRef.current?.unmount?.();
-    brickRef.current = null;
-    try {
-      const res = await fetch("/api/donate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: pesos }),
-      });
-      const data = (await res.json()) as {
-        configured?: boolean;
-        preferenceId?: string;
-        publicKey?: string;
-        initPoint?: string | null;
-        error?: string;
-      };
-      if (!res.ok) throw new Error(data.error ?? "No se pudo iniciar Mercado Pago");
-      if (data.initPoint) {
-        window.location.assign(data.initPoint);
-        return;
-      }
-      if (!data.configured || !data.preferenceId || !data.publicKey) {
-        setStatus("fallback");
-        await copyAlias();
-        setMessage("Copié el alias. En Mercado Pago elegí Transferir y pegalo.");
-        return;
-      }
-      await loadMercadoPagoSdk();
-      if (!window.MercadoPago) throw new Error("SDK de Mercado Pago no disponible");
-      const mp = new window.MercadoPago(data.publicKey, { locale: "es-AR" });
-      brickRef.current = await mp.bricks().create("wallet", "mp-wallet-brick", {
-        initialization: { preferenceId: data.preferenceId },
-        customization: { texts: { valueProp: "security_safety" } },
-      });
-      setStatus("ready");
-    } catch (err) {
-      setStatus("error");
-      setMessage(err instanceof Error ? err.message : "Error al conectar Mercado Pago");
     }
   }
 
@@ -105,7 +53,21 @@ export function DonateBanner() {
             </p>
             <p className="mt-2 text-sm leading-relaxed text-fg/85">
               Martucci es una aplicación open source, libre para todos, desarrollada por un trabajador del audio.
-              Si te sirve, podés donar con Mercado Pago.
+              Si te sirve, podés donar con una transferencia a este alias. Así llega el 100%, sin comisión de Mercado Pago.
+            </p>
+            <button
+              type="button"
+              onClick={() => void copyAlias()}
+              className="mt-3 flex w-full items-center justify-between rounded-md border border-accent/40 bg-accent/10 px-3 py-2.5 text-left"
+            >
+              <span>
+                <span className="block text-[10px] tracking-[0.14em] text-muted uppercase">Alias Mercado Pago</span>
+                <span className="mt-0.5 block font-mono text-lg text-fg">{DONATE_ALIAS}</span>
+              </span>
+              <span className="text-[11px] text-accent">{copied ? "Copiado" : "Copiar"}</span>
+            </button>
+            <p className="mt-2 text-[11px] leading-relaxed text-muted">
+              En Mercado Pago o tu banco: Transferir → alias → pegá <span className="font-mono text-fg">{DONATE_ALIAS}</span>.
             </p>
             <div className="mt-3 flex flex-wrap gap-1.5">
               {DONATE_AMOUNTS.map((value) => (
@@ -118,7 +80,6 @@ export function DonateBanner() {
                   onClick={() => {
                     setAmount(value);
                     setCustom("");
-                    setStatus("idle");
                   }}
                 >
                   ${value.toLocaleString("es-AR")}
@@ -130,29 +91,17 @@ export function DonateBanner() {
                 inputMode="numeric"
                 placeholder="Otro"
                 value={custom}
-                onChange={(e) => {
-                  setCustom(e.target.value);
-                  setStatus("idle");
-                }}
+                onChange={(e) => setCustom(e.target.value)}
                 className="w-20 rounded-sm border border-white/10 bg-transparent px-2 py-1 text-[11px] text-fg"
                 aria-label="Otro monto"
               />
             </div>
-            <div id="mp-wallet-brick" className="mt-3 min-h-10" />
-            {(status === "fallback" || status === "error") && (
-              <p className={`mt-2 text-[11px] ${status === "error" ? "text-red-400" : "text-muted"}`}>
-                {message || <>Alias copiado: <span className="font-mono text-fg">{DONATE_ALIAS}</span></>}
-              </p>
-            )}
             <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => void copyAlias()}>
-                {copied ? "Alias copiado" : DONATE_ALIAS}
-              </Button>
               <Button variant="ghost" size="sm" onClick={close}>
                 Cerrar
               </Button>
-              <Button variant="primary" size="sm" disabled={status === "loading"} onClick={() => void startCheckout()}>
-                {status === "loading" ? "Conectando…" : status === "ready" ? "Actualizar monto" : "Donar"}
+              <Button variant="primary" size="sm" onClick={() => void copyAlias()}>
+                {copied ? "Alias copiado" : "Copiar alias"}
               </Button>
             </div>
           </div>
@@ -161,12 +110,12 @@ export function DonateBanner() {
       {!open && (
         <button
           type="button"
-          className="fixed bottom-2 left-2 z-40 flex size-8 items-center justify-center rounded-full bg-bg/55 text-accent shadow-[0_4px_16px_rgb(0_0_0_/_0.28)] backdrop-blur-md"
           onClick={() => setOpen(true)}
+          className="fixed bottom-3 right-3 z-40 flex size-9 items-center justify-center rounded-full border border-white/10 bg-bg/70 text-accent shadow-lg backdrop-blur-md"
           aria-label="Donar"
-          title="Donar"
+          title={`Donar a ${DONATE_ALIAS}`}
         >
-          <Heart className="size-3.5" strokeWidth={1.9} fill="currentColor" />
+          <Heart className="size-4" fill="currentColor" />
         </button>
       )}
     </>

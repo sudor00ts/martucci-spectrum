@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useAnalyzerStore } from "@/lib/analyzer-store";
 import type { AnalyzerSnapshot } from "@/lib/audio/engine";
 import { SNAP_COLORS, TINTS } from "@/lib/tints";
-import { DONATE_ALIAS, DONATE_URL } from "@/lib/donate";
+import { DONATE_ALIAS } from "@/lib/donate";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -63,7 +63,7 @@ export function SettingsPanel({ snapshots, onRemoveSnap, onClearSnaps }: Props) 
         )}
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2 text-micro">
-        <a className="text-accent hover:underline" href={DONATE_URL} target="_blank" rel="noopener noreferrer" title={`Copiá el alias ${DONATE_ALIAS}`}>Donar ({DONATE_ALIAS})</a>
+        <button type="button" className="text-accent hover:underline" title="Copiar alias" onClick={() => void navigator.clipboard.writeText(DONATE_ALIAS)}>Donar · alias {DONATE_ALIAS}</button>
       </div>
     </section>
   );
