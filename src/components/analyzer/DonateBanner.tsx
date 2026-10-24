@@ -53,7 +53,7 @@ export function DonateBanner() {
             </p>
             <p className="mt-2 text-sm leading-relaxed text-fg/85">
               Martucci es una aplicación open source, libre para todos, desarrollada por un trabajador del audio.
-              Si te sirve, podés donar con una transferencia a este alias. Así llega el 100%, sin comisión de Mercado Pago.
+              Si te sirve, podés donar con una transferencia a este alias.
             </p>
             <button
               type="button"

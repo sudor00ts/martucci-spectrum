@@ -1,5 +1,5 @@
 const SHELL = "martucci-shell-v3";
-const RUNTIME = "martucci-runtime-v9";
+const RUNTIME = "martucci-runtime-v10";
 
 const PRECACHE = ["/", "/favicon.svg", "/manifest.webmanifest", "/icons/apple-touch-icon.png", "/icons/icon-192.png", "/icons/icon-512.png"];
 
