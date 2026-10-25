@@ -111,7 +111,7 @@ export function DonateBanner() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="fixed bottom-3 right-3 z-40 flex size-9 items-center justify-center rounded-full border border-white/10 bg-bg/70 text-accent shadow-lg backdrop-blur-md"
+          className="fixed bottom-3 left-3 z-40 flex size-9 items-center justify-center rounded-full border border-white/10 bg-bg/70 text-accent shadow-lg backdrop-blur-md"
           aria-label="Donar"
           title={`Donar a ${DONATE_ALIAS}`}
         >
