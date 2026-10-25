@@ -73,7 +73,7 @@ function drawLevelLine(ctx: CanvasRenderingContext2D, y: number, w: number, colo
   const tw = ctx.measureText(label).width;
   const bx = w - tw - pad * 2;
   const by = Math.max(2, y - 15);
-  ctx.fillStyle = "rgb(12 11 10 / 0.82)";
+  ctx.fillStyle = "rgb(12 11 10 / 0.42)";
   ctx.fillRect(bx, by, tw + pad * 2 - 2, 14);
   ctx.fillStyle = color;
   ctx.fillText(label, w - pad, by + 13);
@@ -261,8 +261,8 @@ export const SpectrumCanvas = forwardRef<SpectrumCanvasHandle, Props>(function S
       }
       const rmsDb = meanDb(frame.rmsL, frame.rmsR);
       const peakDb = Math.max(frame.peakL, frame.peakR);
-      if (Number.isFinite(rmsDb)) drawLevelLine(ctx, dbToY(rmsDb, ph, p.dbMin, dbMax), pw, "rgb(244 192 154 / 0.95)", [5, 4], `RMS ${formatDb(rmsDb)}`);
-      if (Number.isFinite(peakDb)) drawLevelLine(ctx, dbToY(peakDb, ph, p.dbMin, dbMax), pw, "rgb(236 232 225 / 0.95)", [], `PK ${formatDb(peakDb)}`);
+      if (Number.isFinite(rmsDb)) drawLevelLine(ctx, dbToY(rmsDb, ph, p.dbMin, dbMax), pw, "rgb(244 192 154 / 0.42)", [5, 4], `RMS ${formatDb(rmsDb)}`);
+      if (Number.isFinite(peakDb)) drawLevelLine(ctx, dbToY(peakDb, ph, p.dbMin, dbMax), pw, "rgb(236 232 225 / 0.38)", [], `PK ${formatDb(peakDb)}`);
       ctx.restore();
     }
     ctx.fillStyle = muted;
