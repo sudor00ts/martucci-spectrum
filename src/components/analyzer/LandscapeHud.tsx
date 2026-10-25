@@ -41,7 +41,7 @@ export function LandscapeHud({ onUnlock, online = true }: Props) {
           </Button>
         ) : null}
       </div>
-      <div className="pointer-events-none flex items-end justify-between gap-2 px-1 pb-0.5">
+      <div className="pointer-events-none mb-12 flex items-end justify-between gap-2 px-12">
         <p className="max-w-[70%] text-micro text-muted">Tocá una frecuencia · arrastrá una banda · pellizcá para zoom · doble toque restablece</p>
         <p className="font-mono text-micro tabular-nums text-fg">
           {hasBand ? `${formatHz(bandMin)} – ${formatHz(bandMax!)}` : selectedHz != null ? formatHz(selectedHz) : `${formatHz(zoomMin)} – ${formatHz(zoomMax)}`}
