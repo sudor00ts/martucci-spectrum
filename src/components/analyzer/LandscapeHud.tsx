@@ -17,8 +17,6 @@ export function LandscapeHud({ onUnlock, online = true }: Props) {
   const selectedHz = useAnalyzerStore((s) => s.selectedHz);
   const bandMin = useAnalyzerStore((s) => s.bandMin);
   const bandMax = useAnalyzerStore((s) => s.bandMax);
-  const zoomMin = useAnalyzerStore((s) => s.zoomMin);
-  const zoomMax = useAnalyzerStore((s) => s.zoomMax);
   const hasBand = bandMin != null && bandMax != null;
   return (
     <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-between p-2">
@@ -43,9 +41,11 @@ export function LandscapeHud({ onUnlock, online = true }: Props) {
       </div>
       <div className="pointer-events-none mb-12 flex items-end justify-between gap-2 px-12">
         <p className="max-w-[70%] text-micro text-muted">Tocá una frecuencia · arrastrá una banda · pellizcá para zoom · doble toque restablece</p>
-        <p className="font-mono text-micro tabular-nums text-fg">
-          {hasBand ? `${formatHz(bandMin)} – ${formatHz(bandMax!)}` : selectedHz != null ? formatHz(selectedHz) : `${formatHz(zoomMin)} – ${formatHz(zoomMax)}`}
-        </p>
+        {(hasBand || selectedHz != null) && (
+          <p className="font-mono text-micro tabular-nums text-fg">
+            {hasBand ? `${formatHz(bandMin)} – ${formatHz(bandMax!)}` : formatHz(selectedHz!)}
+          </p>
+        )}
       </div>
     </div>
   );
